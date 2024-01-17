@@ -16,7 +16,6 @@ def make_flow_data_loader(flow_matrix_filename: str, num_of_weeks: int,
     :param num_of_days: 日采样
     :param num_of_hours: 小时采样
     :param batch_size: 批量数
-    :param model_name: 模型名称
     :param shuffle: 是否打乱
     :return: (train_loader, val_loader, test_loader, test_target, _mean, _std)
             train_loader: 训练数据集加载器
