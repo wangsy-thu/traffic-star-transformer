@@ -1,5 +1,5 @@
-from model_utils.attention import *
-from model_utils.conv import *
+from .model_utils.attention import *
+from .model_utils.conv import *
 
 
 class StarEncoderLayer(nn.Module):
@@ -30,7 +30,7 @@ class StarEncoderLayer(nn.Module):
             in_channels=hidden_channels,
             time_steps_num=time_step_num
         )
-        # 时间卷积层
+        # 空间卷积层
         self.spatial_conv = SpatialConvLayer(
             in_channels=hidden_channels,
             out_channels=hidden_channels,

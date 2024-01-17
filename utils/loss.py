@@ -1,12 +1,13 @@
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from tensorboardX import SummaryWriter
-from torch import nn
 from torch.utils.data import DataLoader
-import numpy as np
-import matplotlib.pyplot as plt
+
+from models.star_transformer import StarTransformer
 
 
-def compute_val_loss(net: nn.Module, val_loader: DataLoader, criterion,
+def compute_val_loss(net: StarTransformer, val_loader: DataLoader, criterion,
                      masked_flag: int, missing_value: float, sw: SummaryWriter,
                      epoch: int, limit=None):
     """
@@ -30,7 +31,8 @@ def compute_val_loss(net: nn.Module, val_loader: DataLoader, criterion,
 
         for batch_index, batch_data in enumerate(val_loader):
             encoder_inputs, labels = batch_data
-            outputs = net(encoder_inputs)
+            labels = labels.unsqueeze(2)
+            outputs = net(encoder_inputs, labels)
             prediction.append(outputs.detach().cpu().numpy())
             target.append(labels.detach().cpu().numpy())
             if masked_flag:
@@ -49,8 +51,8 @@ def compute_val_loss(net: nn.Module, val_loader: DataLoader, criterion,
                 fig = plt.figure()
                 plt.title('Node {} Validation Result'.format(i))
                 plot_length = int(0.2 * len(prediction))
-                y_predict = prediction[:plot_length, i, -1]
-                y_label = target[:plot_length, i, -1]
+                y_predict = prediction[:plot_length, i, 0, -1]
+                y_label = target[:plot_length, i, 0, -1]
                 plt.plot(range(plot_length), y_label, label='real')
                 plt.plot(range(plot_length), y_predict, label='predict')
                 plt.xlabel('time step')

@@ -162,8 +162,7 @@ def normalization(train_data: np.ndarray, val_data: np.ndarray, test_data: np.nd
 
 
 def read_save_dataset(flow_matrix_filename: str, num_of_weeks: int, num_of_days: int,
-                      num_of_hours: int, predict_step: int, points_per_hour: int,
-                      model_name: str, save_file=False):
+                      num_of_hours: int, predict_step: int, points_per_hour: int, save_file=False):
     """
     读取并保存数据集，按照时间窗口将数据处理成目标格式
     :param flow_matrix_filename: 流量数据文件路径名称
@@ -172,7 +171,6 @@ def read_save_dataset(flow_matrix_filename: str, num_of_weeks: int, num_of_days:
     :param num_of_hours: 小时采样
     :param predict_step: 预测时间步
     :param points_per_hour: 每小时时间步数量
-    :param model_name: 模型名称
     :param save_file: 是否保存数据文件
     :return: (feature, target)
                 feature: np.ndarray(sample_num, num_of_depend x points_per_hour,
@@ -293,7 +291,7 @@ def read_save_dataset(flow_matrix_filename: str, num_of_weeks: int, num_of_days:
         file_name = os.path.join(file_dir_name,
                                  file_base_name + '_r' + str(num_of_hours) +
                                  '_d' + str(num_of_days) +
-                                 '_w' + str(num_of_weeks)) + '_' + model_name[:-2]
+                                 '_w' + str(num_of_weeks))
         print('File Name: {}'.format(file_name))
         np.savez_compressed(
             file_name,
@@ -316,7 +314,7 @@ def read_save_dataset(flow_matrix_filename: str, num_of_weeks: int, num_of_days:
 if __name__ == '__main__':
     # prepare dataset
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default='config/PEMS04_astgcn.conf', type=str,
+    parser.add_argument("--config", default='config/PEMS04_star.conf', type=str,
                         help="configuration file path")
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -335,7 +333,7 @@ if __name__ == '__main__':
     num_of_vertices = int(data_config['num_of_vertices'])
     points_per_hour = int(data_config['points_per_hour'])
     num_for_predict = int(data_config['num_for_predict'])
-    len_input = int(data_config['len_input'])
+    time_step_num = int(data_config['time_step_num'])
     dataset_name = data_config['dataset_name']
     num_of_weeks = int(training_config['num_of_weeks'])
     num_of_days = int(training_config['num_of_days'])
@@ -351,14 +349,13 @@ if __name__ == '__main__':
         num_of_hours=num_of_hours,
         predict_step=num_for_predict,
         points_per_hour=points_per_hour,
-        model_name=model_name,
         save_file=True
     )
 
     print('=====Validation Preprocess Result=====')
-    file_data = np.load('./data/{}/{}_r{}_d{}_w{}_{}.npz'.format(
+    file_data = np.load('./data/{}/{}_r{}_d{}_w{}.npz'.format(
         dataset_name, dataset_name, num_of_hours,
-        num_of_days, num_of_weeks, model_name[:-2]
+        num_of_days, num_of_weeks
     ))
     print('train_x shape:{}'.format(file_data['train_x'].shape))
     print('train_target shape:{}'.format(file_data['train_target'].shape))

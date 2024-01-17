@@ -42,14 +42,10 @@ class StarTransformer(nn.Module):
             conv_method=conv_method
         )
         self.decoder = StarDecoder(
-            K=2,
             hidden_channels=hidden_channels,
-            edge_index=edge_index,
             vertices_num=vertices_num,
-            time_step_num=predict_step_num,
             out_features=out_features,
             layer_count=layer_count,
-            conv_method=conv_method
         )
         self.final_conv = nn.Conv2d(
             in_channels=hidden_channels,
@@ -77,12 +73,12 @@ class StarTransformer(nn.Module):
         :return: 输出矩阵块 (B, N, F_out, T)
         """
         batch_size, vertices_num, in_features, time_steps = x_matrix_in.size()
-        model.eval()
+        self.eval()
         x_matrix_trg = (torch.zeros((batch_size, vertices_num, self.out_features, self.predict_step_num)).
                         to(x_matrix_in.device))
         with torch.no_grad():
             for i in range(self.predict_step_num):
-                x_out = model(x_matrix_in, x_matrix_trg)
+                x_out = self.forward(x_matrix_in, x_matrix_trg)
                 x_matrix_trg[:, :, :, i] = x_out[:, :, :, i]
                 x_matrix_trg.contiguous()
         return x_matrix_trg

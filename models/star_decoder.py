@@ -1,5 +1,5 @@
-from model_utils.attention import *
-from model_utils.conv import *
+from .model_utils.attention import *
+from .model_utils.conv import *
 
 
 class StarDecoderLayer(nn.Module):
@@ -8,16 +8,11 @@ class StarDecoderLayer(nn.Module):
     Star-Transformer 的解码器
     """
 
-    def __init__(self, K: int, hidden_channels: int, edge_index: torch.LongTensor,
-                 vertices_num: int, time_step_num: int, conv_method: str = 'GIN'):
+    def __init__(self, hidden_channels: int, vertices_num: int):
         """
         构造函数
-        :param K: GIN网络层数，消息聚集邻居的跳数，默认为 2
         :param hidden_channels: 中间传递的维度
-        :param edge_index: 边列表
         :param vertices_num: 节点数量
-        :param time_step_num: 时间步数量
-        :param conv_method: 卷积策略，默认为 'GIN'
         """
         super(StarDecoderLayer, self).__init__()
         # 时间注意力层
@@ -25,23 +20,10 @@ class StarDecoderLayer(nn.Module):
             in_channels=hidden_channels,
             vertices_num=vertices_num
         )
-        # 空间注意力层
-        self.spatial_attention = SpatialMultiHeadAttentionLayer(
-            in_channels=hidden_channels,
-            time_steps_num=time_step_num
-        )
         # 时间互注意力层
         self.temporal_cross_attention = TemporalCrossAttentionLayer(
             in_channels=hidden_channels,
             vertices_num=vertices_num
-        )
-        # 时间卷积层
-        self.spatial_conv = SpatialConvLayer(
-            in_channels=hidden_channels,
-            out_channels=hidden_channels,
-            edge_index=edge_index,
-            neighbors_count=K,
-            conv_method=conv_method
         )
         # FFN 层，存储元素内部的信息
         self.st_ffn = nn.Conv2d(
@@ -73,20 +55,15 @@ class StarDecoderLayer(nn.Module):
                          to(x_matrix_in.device).transpose(0, 1))
         x_temporal_attn, t_attn = self.temporal_attention(x_matrix_in, temporal_mask)  # (B, N, C, T)
 
-        # 空间注意力
-        x_spatial_attn, s_attn = self.spatial_attention(x_temporal_attn)  # (B, N, C, T)
-
         x_temporal_cross_attn, cross_attn = self.temporal_cross_attention(
-            x_spatial_attn, x_matrix_out, mask
+            x_temporal_attn, x_matrix_out, mask
         )
-        # 空间卷积
-        x_spatial_conv = self.spatial_conv(x_temporal_cross_attn)  # (B, N, C, T)
 
         # 残差分支
         x_residual = self.residual_conv(x_matrix_in.permute(0, 2, 1, 3))  # (B, C, N, T)
 
         # FFN层 from (B, N, C, T) -> (B, C, N, T) -FFN-> (B, C, N, T)
-        x_ffn = self.st_ffn(x_spatial_conv.permute(0, 2, 1, 3))
+        x_ffn = self.st_ffn(x_temporal_cross_attn.permute(0, 2, 1, 3))
 
         # Layer Norm from (B, C, N, T) -> (B, N, T, C) -> (B, N, C, T)
         x_out = self.layer_norm(
@@ -103,17 +80,12 @@ class StarDecoder(nn.Module):
     Star Transformer 的 Decoder 部分
     """
 
-    def __init__(self, K: int, hidden_channels: int, edge_index: torch.LongTensor,
-                 vertices_num: int, time_step_num: int, out_features: int,
-                 layer_count: int, conv_method: str = 'GIN'):
+    def __init__(self, hidden_channels: int, vertices_num: int,
+                 out_features: int, layer_count: int):
         """
         构造函数
-        :param K: GIN网络层数，消息聚集邻居的跳数，默认为 2
         :param hidden_channels: 中间传递的维度
-        :param edge_index: 边列表
         :param vertices_num: 节点数量
-        :param time_step_num: 时间步数量
-        :param conv_method: 卷积策略，默认为 'GIN'
         :param out_features: 输出特征数
         :param layer_count: encoder 层数
         """
@@ -127,12 +99,8 @@ class StarDecoder(nn.Module):
 
         self.encoder_layer_list = nn.ModuleList([
             StarDecoderLayer(
-                K=K,
                 hidden_channels=hidden_channels,
-                edge_index=edge_index,
                 vertices_num=vertices_num,
-                time_step_num=time_step_num,
-                conv_method=conv_method
             ) for _ in range(layer_count)
         ])
 
@@ -159,8 +127,6 @@ class StarDecoder(nn.Module):
 
 
 if __name__ == '__main__':
-    data_dir = '../data/PEMS04/PEMS04.csv'
-    edge_index = get_edge_index(data_dir)
     in_channels = 3
     hidden_channels = 64
     out_channels = 1
@@ -178,14 +144,10 @@ if __name__ == '__main__':
     # )
 
     model = StarDecoder(
-        K=2,
         hidden_channels=hidden_channels,
-        edge_index=torch.from_numpy(edge_index).type(torch.long).to('cuda'),
         vertices_num=vertices_num,
-        time_step_num=time_step_num,
         out_features=out_channels,
         layer_count=2,
-        conv_method='GIN'
     )
 
     X1 = torch.rand((batch_size, vertices_num, out_channels, time_step_num)).to('cuda')

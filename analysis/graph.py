@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 
 
 if __name__ == '__main__':
-    dataset_name = 'PEMS04'
+    dataset_name = 'PEMS08'
     edges = pd.read_csv('../data/{}/{}.csv'.format(dataset_name, dataset_name))
     G = nx.from_pandas_edgelist(edges, source='from', target='to', edge_attr='cost')
     # plot graph
     nx.draw(G, node_size=30, node_color='r')
-    plt.savefig('./plot_feature/{}/networkx_pems04.png'.format(dataset_name))
+    plt.savefig('./plot_feature/{}/networkx.png'.format(dataset_name))
     plt.close()
 
     # plot node degree distribution

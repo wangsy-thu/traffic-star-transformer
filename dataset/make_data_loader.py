@@ -7,7 +7,7 @@ import torch.utils.data
 
 def make_flow_data_loader(flow_matrix_filename: str, num_of_weeks: int,
                           num_of_days: int, num_of_hours: int, batch_size: int,
-                          model_name: str, device, shuffle=True):
+                          device, shuffle=True):
     """
     创建 DataLoader 对象
     :param device: 硬件设备
@@ -31,7 +31,7 @@ def make_flow_data_loader(flow_matrix_filename: str, num_of_weeks: int,
     file_name = os.path.join(
         file_dir_name,
         file_base_name + '_r' + str(num_of_hours) + '_d' + str(num_of_days) + '_w' + str(num_of_weeks)
-    ) + '_' + model_name[:-2]
+    )
     print('=====Load File=====')
     file_data = np.load(file_name + '.npz')
 
@@ -94,7 +94,6 @@ if __name__ == '__main__':
         num_of_hours=1,
         batch_size=64,
         device=torch.device('cpu'),
-        model_name='astgcn_r',
         shuffle=True
     )
 
