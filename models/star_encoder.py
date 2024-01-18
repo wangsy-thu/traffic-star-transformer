@@ -20,6 +20,7 @@ class StarEncoderLayer(nn.Module):
         :param conv_method: 卷积策略，默认为 'GIN'
         """
         super(StarEncoderLayer, self).__init__()
+        self.conv_method = conv_method
         # 时间注意力层
         self.temporal_attention = TemporalMultiHeadAttentionLayer(
             in_channels=hidden_channels,
@@ -31,13 +32,14 @@ class StarEncoderLayer(nn.Module):
             time_steps_num=time_step_num
         )
         # 空间卷积层
-        self.spatial_conv = SpatialConvLayer(
-            in_channels=hidden_channels,
-            out_channels=hidden_channels,
-            edge_index=edge_index,
-            neighbors_count=K,
-            conv_method=conv_method
-        )
+        if conv_method != 'None':
+            self.spatial_conv = SpatialConvLayer(
+                in_channels=hidden_channels,
+                out_channels=hidden_channels,
+                edge_index=edge_index,
+                neighbors_count=K,
+                conv_method=conv_method
+            )
         # FFN 层，存储元素内部的信息
         self.st_ffn = nn.Conv2d(
             in_channels=hidden_channels,
@@ -68,7 +70,10 @@ class StarEncoderLayer(nn.Module):
         x_spatial_attn, s_attn = self.spatial_attention(x_temporal_attn)  # (B, N, C, T)
 
         # 空间卷积
-        x_spatial_conv = self.spatial_conv(x_spatial_attn)  # (B, N, C, T)
+        if self.conv_method == 'None':
+            x_spatial_conv = x_spatial_attn  # (B, N, C, T)
+        else:
+            x_spatial_conv = self.spatial_conv(x_spatial_attn)  # (B, N, C, T)
 
         # 残差分支
         x_residual = self.residual_conv(x_matrix.permute(0, 2, 1, 3))  # (B, C, N, T)
