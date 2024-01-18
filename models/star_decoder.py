@@ -51,8 +51,8 @@ class StarDecoderLayer(nn.Module):
         """
         # 时间注意力
         time_step_num = x_matrix_in.size(-1)
-        temporal_mask = (torch.tril(torch.zeros(time_step_num, time_step_num), diagonal=0).bool().
-                         to(x_matrix_in.device).transpose(0, 1))
+        temporal_mask = (~torch.tril(torch.ones(time_step_num, time_step_num), diagonal=0).bool().
+                         to(x_matrix_in.device))
         x_temporal_attn, t_attn = self.temporal_attention(x_matrix_in, temporal_mask)  # (B, N, C, T)
 
         x_temporal_cross_attn, cross_attn = self.temporal_cross_attention(
@@ -104,6 +104,13 @@ class StarDecoder(nn.Module):
             ) for _ in range(layer_count)
         ])
 
+        self.final_conv = nn.Conv2d(
+            in_channels=hidden_channels,
+            out_channels=1,
+            kernel_size=(1, 1),
+            stride=(1, 1)
+        )
+
     def forward(self, x_matrix_in: torch.Tensor, x_matrix_out: torch.Tensor):
         """
         前向传播函数
@@ -123,37 +130,6 @@ class StarDecoder(nn.Module):
         for block in self.encoder_layer_list:
             x_matrix = block(x_matrix, x_matrix_out)  # (B, N, C, T)
 
+        x_matrix = self.final_conv(x_matrix.permute(0, 2, 1, 3)).permute(0, 2, 1, 3)
+
         return x_matrix
-
-
-if __name__ == '__main__':
-    in_channels = 3
-    hidden_channels = 64
-    out_channels = 1
-    in_step_num = 12
-    batch_size = 32
-    vertices_num = 374
-    time_step_num = 24
-
-    # model = StarEncoderLayer(
-    #     K=2,
-    #     hidden_channels=out_channels,
-    #     edge_index=torch.from_numpy(edge_index).type(torch.long).to('cuda'),
-    #     vertices_num=vertices_num,
-    #     time_step_num=time_step_num, conv_method='GIN'
-    # )
-
-    model = StarDecoder(
-        hidden_channels=hidden_channels,
-        vertices_num=vertices_num,
-        out_features=out_channels,
-        layer_count=2,
-    )
-
-    X1 = torch.rand((batch_size, vertices_num, out_channels, time_step_num)).to('cuda')
-    X2 = torch.rand((batch_size, vertices_num, hidden_channels, in_step_num)).to('cuda')
-    model.to('cuda')
-    print('input X1 shape: {}'.format(X1.size()))
-    print('input X2 shape: {}'.format(X2.size()))
-    Y = model(X1, X2)
-    print('output X shape: {}'.format(Y.size()))

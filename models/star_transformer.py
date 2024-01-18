@@ -47,12 +47,6 @@ class StarTransformer(nn.Module):
             out_features=out_features,
             layer_count=layer_count,
         )
-        self.final_conv = nn.Conv2d(
-            in_channels=hidden_channels,
-            out_channels=1,
-            kernel_size=(1, 1),
-            stride=(1, 1)
-        )
 
     def forward(self, x_matrix_in: torch.Tensor, x_matrix_out: torch.Tensor):
         """
@@ -63,25 +57,23 @@ class StarTransformer(nn.Module):
         """
         x_matrix_enc = self.encoder(x_matrix_in)
         x_matrix_dec = self.decoder(x_matrix_out, x_matrix_enc)
-        x_out = self.final_conv(x_matrix_dec.permute(0, 2, 1, 3)).permute(0, 2, 1, 3)
-        return x_out
 
-    def inference(self, x_matrix_in: torch):
+        return x_matrix_dec
+
+    def inference(self, x_matrix_in: torch.Tensor):
         """
         自回归预测
         :param x_matrix_in: 输入矩阵块 (B, N, F_in, T)
         :return: 输出矩阵块 (B, N, F_out, T)
         """
-        batch_size, vertices_num, in_features, time_steps = x_matrix_in.size()
-        self.eval()
-        x_matrix_trg = (torch.zeros((batch_size, vertices_num, self.out_features, self.predict_step_num)).
-                        to(x_matrix_in.device))
         with torch.no_grad():
+            batch_size, vertices_num, in_features, time_steps = x_matrix_in.size()
+            x_matrix_enc = self.encoder(x_matrix_in)
+            trg = -torch.ones((batch_size, vertices_num, self.out_features, 1)).to(x_matrix_in.device)
             for i in range(self.predict_step_num):
-                x_out = self.forward(x_matrix_in, x_matrix_trg)
-                x_matrix_trg[:, :, :, i] = x_out[:, :, :, i]
-                x_matrix_trg.contiguous()
-        return x_matrix_trg
+                x_out = self.decoder(trg, x_matrix_enc)
+                trg = torch.cat([trg, x_out[:, :, :, -1].unsqueeze(-1)], dim=-1)
+        return x_out
 
 
 def make_model(neighbor_count: int, hidden_channels: int, edge_index: torch.LongTensor,
@@ -101,47 +93,3 @@ def make_model(neighbor_count: int, hidden_channels: int, edge_index: torch.Long
     )
     model.to(device)
     return model
-
-
-if __name__ == '__main__':
-    data_dir = '../data/PEMS04/PEMS04.csv'
-    edge_index = get_edge_index(data_dir)
-    in_features = 3
-    out_features = 1
-    hidden_channels = 64
-    batch_size = 32
-    vertices_num = 374
-    time_step_num = 12
-    predict_step_num = 24
-
-    # model = StarEncoderLayer(
-    #     K=2,
-    #     hidden_channels=out_channels,
-    #     edge_index=torch.from_numpy(edge_index).type(torch.long).to('cuda'),
-    #     vertices_num=vertices_num,
-    #     time_step_num=time_step_num, conv_method='GIN'
-    # )
-
-    model = make_model(
-        neighbor_count=2,
-        hidden_channels=hidden_channels,
-        edge_index=edge_index,
-        vertices_num=vertices_num,
-        time_step_num=time_step_num,
-        in_features=in_features,
-        out_features=out_features,
-        predict_step_num=predict_step_num,
-        layer_count=2,
-        conv_method='GIN',
-        device='cuda'
-    )
-
-    X = torch.rand((batch_size, vertices_num, in_features, time_step_num)).to('cuda')
-    Y = torch.rand((batch_size, vertices_num, out_features, predict_step_num)).to('cuda')
-
-    print('input X shape: {}'.format(X.size()))
-    print('input Y shape: {}'.format(Y.size()))
-    out = model(X, Y)
-    out_inf = model.inference(X)
-    print('output O shape: {}'.format(out.size()))
-    print('output I shape: {}'.format(out_inf.size()))

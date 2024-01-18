@@ -70,6 +70,7 @@ metric_method = training_config['metric_method']
 missing_value = float(training_config['missing_value'])
 layer_num = int(training_config['layer_num'])
 train_device = training_config['train_device']
+plot_every = int(training_config['plot_every'])
 
 folder_dir = '%s_%d_channel%d_%e_%s' \
              % (model_name, layer_num, hidden_channel, learning_rate, graph_conv_method)
@@ -169,6 +170,8 @@ def train_main():
             val_loss = compute_val_loss(
                 net=model,
                 val_loader=val_loader,
+                device=train_device,
+                plot_every=plot_every,
                 criterion=criterion_masked,
                 masked_flag=masked_flag,
                 missing_value=missing_value,
@@ -180,6 +183,8 @@ def train_main():
                 net=model,
                 val_loader=val_loader,
                 criterion=criterion,
+                device=train_device,
+                plot_every=plot_every,
                 masked_flag=masked_flag,
                 missing_value=missing_value,
                 sw=sw,
@@ -198,15 +203,22 @@ def train_main():
         for batch_data in tqdm(train_loader, desc='Epoch: {}'.format(epoch + 1)):
             encoder_input, labels = batch_data
             labels = labels.unsqueeze(2)
+            current_batch_size = labels.size(0)
+
+            # 区别于 token 预测，这里需要一个启动子
+            start_engine = -torch.ones((current_batch_size, num_of_vertices, out_features, 1)).to(train_device)
+            labels_input = torch.cat([start_engine, labels], dim=-1)
+            labels_output = torch.cat([labels, start_engine], dim=-1)
 
             # 训练模型
             optimizer.zero_grad()  # 梯度清零
-            outputs = model(encoder_input, labels)  # 正向传播
+            outputs = model(encoder_input, labels_input)  # 正向传播
+
             # 计算损失
             if masked_flag:
-                loss = criterion_masked(outputs, labels, missing_value)
+                loss = criterion_masked(outputs, labels_output, missing_value)
             else:
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels_output)
 
             loss.backward()  # 反向求导
             optimizer.step()  # 梯度更新

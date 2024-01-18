@@ -143,38 +143,3 @@ class StarEncoder(nn.Module):
             x_matrix = block(x_matrix)  # (B, N, C, T)
 
         return x_matrix
-
-
-if __name__ == '__main__':
-    data_dir = '../data/PEMS04/PEMS04.csv'
-    edge_index = get_edge_index(data_dir)
-    in_channels = 3
-    out_channels = 64
-    batch_size = 32
-    vertices_num = 374
-    time_step_num = 12
-
-    # model = StarEncoderLayer(
-    #     K=2,
-    #     hidden_channels=out_channels,
-    #     edge_index=torch.from_numpy(edge_index).type(torch.long).to('cuda'),
-    #     vertices_num=vertices_num,
-    #     time_step_num=time_step_num, conv_method='GIN'
-    # )
-
-    model = StarEncoder(
-        K=2,
-        hidden_channels=out_channels,
-        edge_index=torch.from_numpy(edge_index).type(torch.long).to('cuda'),
-        vertices_num=vertices_num,
-        time_step_num=time_step_num,
-        in_features=in_channels,
-        layer_count=2,
-        conv_method='GCN'
-    )
-
-    X = torch.rand((batch_size, vertices_num, in_channels, time_step_num)).to('cuda')
-    model.to('cuda')
-    print('input X shape: {}'.format(X.size()))
-    Y = model(X)
-    print('output X shape: {}'.format(Y.size()))

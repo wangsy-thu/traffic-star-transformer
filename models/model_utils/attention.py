@@ -81,7 +81,8 @@ class TemporalMultiHeadAttentionLayer(nn.Module):
         :param mask: 掩码矩阵
         :return: 输出经过时间注意力计算的数据块 (B, N, C, T)
         """
-        x_mat_in = self.channel_linear(x_matrix.permute((0, 3, 1, 2))).squeeze()
+        x_mat_in = self.channel_linear(x_matrix.permute((0, 3, 1, 2)))
+        x_mat_in = torch.squeeze(x_mat_in, dim=3)
         _, temporal_attention = self.self_attention(
             query=x_mat_in,
             key=x_mat_in,
@@ -127,8 +128,10 @@ class TemporalCrossAttentionLayer(nn.Module):
         :param mask: 掩码矩阵
         :return: 输出经过时间注意力计算的数据块 (B, N, C, T)
         """
-        x_mat_in = self.channel_input_linear(x_matrix_in.permute((0, 3, 1, 2))).squeeze()
-        x_mat_out = self.channel_output_linear(x_matrix_out.permute((0, 3, 1, 2))).squeeze()
+        x_mat_in = self.channel_input_linear(x_matrix_in.permute((0, 3, 1, 2)))
+        x_mat_in = torch.squeeze(x_mat_in, dim=3)
+        x_mat_out = self.channel_output_linear(x_matrix_out.permute((0, 3, 1, 2)))
+        x_mat_out = torch.squeeze(x_mat_out, dim=3)
         _, temporal_attention = self.cross_attention(
             query=x_mat_in,
             key=x_mat_out,

@@ -7,13 +7,15 @@ from torch.utils.data import DataLoader
 from models.star_transformer import StarTransformer
 
 
-def compute_val_loss(net: StarTransformer, val_loader: DataLoader, criterion,
-                     masked_flag: int, missing_value: float, sw: SummaryWriter,
+def compute_val_loss(net: StarTransformer, val_loader: DataLoader, criterion, device,
+                     masked_flag: int, missing_value: float, sw: SummaryWriter, plot_every,
                      epoch: int, limit=None):
     """
 
     :param net: 模型
     :param val_loader: Validation 加载器
+    :param device: 设备名称
+    :param plot_every: 绘制间隔
     :param criterion: 损失函数
     :param masked_flag: 是否 Masked
     :param missing_value: 缺失值
@@ -31,14 +33,18 @@ def compute_val_loss(net: StarTransformer, val_loader: DataLoader, criterion,
 
         for batch_index, batch_data in enumerate(val_loader):
             encoder_inputs, labels = batch_data
+            batch_size, vertices_num, _ = labels.size()
+            start_engine = -torch.ones((batch_size, vertices_num, 1, 1)).to(device)
             labels = labels.unsqueeze(2)
-            outputs = net(encoder_inputs, labels)
-            prediction.append(outputs.detach().cpu().numpy())
+            labels_input = torch.cat([start_engine, labels], dim=-1)
+            labels_output = torch.cat([labels, start_engine], dim=-1)
+            outputs = net(encoder_inputs, labels_input)
+            prediction.append(outputs[:, :, :, :-1].detach().cpu().numpy())
             target.append(labels.detach().cpu().numpy())
             if masked_flag:
-                loss = criterion(outputs, labels, missing_value)
+                loss = criterion(outputs, labels_output, missing_value)
             else:
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels_output)
 
             tmp.append(loss.item())
             if (limit is not None) and batch_index >= limit:
@@ -46,7 +52,7 @@ def compute_val_loss(net: StarTransformer, val_loader: DataLoader, criterion,
         prediction = np.concatenate(prediction, axis=0)
         target = np.concatenate(target, axis=0)
 
-        if epoch % 5 == 0:
+        if epoch % plot_every == 0:
             for i in range(10):
                 fig = plt.figure()
                 plt.title('Node {} Validation Result'.format(i))
