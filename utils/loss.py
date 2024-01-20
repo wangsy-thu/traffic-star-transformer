@@ -37,14 +37,13 @@ def compute_val_loss(net: StarTransformer, val_loader: DataLoader, criterion, de
             start_engine = -torch.ones((batch_size, vertices_num, 1, 1)).to(device)
             labels = labels.unsqueeze(2)
             labels_input = torch.cat([start_engine, labels], dim=-1)
-            labels_output = torch.cat([labels, start_engine], dim=-1)
             outputs = net(encoder_inputs, labels_input)
             prediction.append(outputs[:, :, :, :-1].detach().cpu().numpy())
             target.append(labels.detach().cpu().numpy())
             if masked_flag:
-                loss = criterion(outputs, labels_output, missing_value)
+                loss = criterion(outputs[:, :, :, :-1], labels, missing_value)
             else:
-                loss = criterion(outputs, labels_output)
+                loss = criterion(outputs[:, :, :, :-1], labels)
 
             tmp.append(loss.item())
             if (limit is not None) and batch_index >= limit:

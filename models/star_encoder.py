@@ -47,13 +47,6 @@ class StarEncoderLayer(nn.Module):
             kernel_size=(1, 1),
             stride=(1, 1)
         )
-        # 残差卷积层，用于对齐
-        self.residual_conv = nn.Conv2d(
-            in_channels=hidden_channels,
-            out_channels=hidden_channels,
-            kernel_size=(1, 1),
-            stride=(1, 1)
-        )
         self.layer_norm = nn.LayerNorm(hidden_channels)
 
     def forward(self, x_matrix: torch.Tensor, mask=None):
@@ -66,8 +59,18 @@ class StarEncoderLayer(nn.Module):
         # 时间注意力
         x_temporal_attn, t_attn = self.temporal_attention(x_matrix, mask)  # (B, N, C, T)
 
+        # 层归一化
+        x_temporal_attn = self.layer_norm(
+            F.relu(x_temporal_attn + x_matrix).permute(0, 1, 3, 2)
+        ).permute(0, 1, 3, 2)
+
         # 空间注意力
         x_spatial_attn, s_attn = self.spatial_attention(x_temporal_attn)  # (B, N, C, T)
+
+        # 层归一化
+        x_spatial_attn = self.layer_norm(
+            F.relu(x_spatial_attn + x_temporal_attn).permute(0, 1, 3, 2)
+        ).permute(0, 1, 3, 2)
 
         # 空间卷积
         if self.conv_method == 'None':
@@ -75,15 +78,17 @@ class StarEncoderLayer(nn.Module):
         else:
             x_spatial_conv = self.spatial_conv(x_spatial_attn)  # (B, N, C, T)
 
-        # 残差分支
-        x_residual = self.residual_conv(x_matrix.permute(0, 2, 1, 3))  # (B, C, N, T)
+        # 层归一化
+        x_spatial_conv = self.layer_norm(
+            F.relu(x_spatial_attn + x_spatial_conv).permute(0, 1, 3, 2)
+        ).permute(0, 1, 3, 2)
 
-        # FFN层 from (B, N, C, T) -> (B, C, N, T) -FFN-> (B, C, N, T)
-        x_ffn = self.st_ffn(x_spatial_conv.permute(0, 2, 1, 3))
+        # FFN层 from (B, N, C, T) -> (B, C, N, T) -FFN-> (B, N, C, T)
+        x_ffn = self.st_ffn(x_spatial_conv.permute(0, 2, 1, 3)).permute(0, 2, 1, 3)
 
-        # Layer Norm from (B, C, N, T) -> (B, N, T, C) -> (B, N, C, T)
+        # Layer Norm from (B, N, C, T) -> (B, N, T, C) -> (B, N, C, T)
         x_out = self.layer_norm(
-            F.relu(x_ffn + x_residual).permute(0, 2, 3, 1)
+            F.relu(x_ffn + x_spatial_conv).permute(0, 1, 3, 2)
         ).permute(0, 1, 3, 2)
 
         # 输出与输入统一，便于搭层

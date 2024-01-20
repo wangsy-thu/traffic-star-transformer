@@ -208,7 +208,6 @@ def train_main():
             # 区别于 token 预测，这里需要一个启动子
             start_engine = -torch.ones((current_batch_size, num_of_vertices, out_features, 1)).to(train_device)
             labels_input = torch.cat([start_engine, labels], dim=-1)
-            labels_output = torch.cat([labels, start_engine], dim=-1)
 
             # 训练模型
             optimizer.zero_grad()  # 梯度清零
@@ -216,9 +215,9 @@ def train_main():
 
             # 计算损失
             if masked_flag:
-                loss = criterion_masked(outputs, labels_output, missing_value)
+                loss = criterion_masked(outputs[:, :, :, :-1], labels, missing_value)
             else:
-                loss = criterion(outputs, labels_output)
+                loss = criterion(outputs[:, :, :, :-1], labels)
 
             loss.backward()  # 反向求导
             optimizer.step()  # 梯度更新

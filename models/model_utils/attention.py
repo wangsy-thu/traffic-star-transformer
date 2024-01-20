@@ -1,6 +1,85 @@
 import torch
 import torch.nn as nn
 from torch.nn import MultiheadAttention
+from torch.nn import functional as F
+
+
+class SpatialAttentionLayer(nn.Module):
+    """
+    Spatial Attention Layer
+    空间注意力层，计算 N 个节点的注意力矩阵
+    """
+
+    def __init__(self, in_channels: int, vertices_num: int, time_steps_num: int):
+        """
+        构造函数
+        :param in_channels: 输入通道数，特征数， Integer 类型
+        :param vertices_num: 图节点数量， Integer 类型
+        :param time_steps_num: 时间步数量，指的是输入的时间段的个数， Integer 类型
+        """
+        super(SpatialAttentionLayer, self).__init__()
+        self.W1 = nn.Parameter(torch.FloatTensor(time_steps_num))
+        self.W2 = nn.Parameter(torch.FloatTensor(in_channels, time_steps_num))
+        self.W3 = nn.Parameter(torch.FloatTensor(in_channels))
+        self.bs = nn.Parameter(torch.FloatTensor(1, vertices_num, vertices_num))
+        self.Vs = nn.Parameter(torch.FloatTensor(vertices_num, vertices_num))
+
+    def forward(self, x_matrix):
+        """
+        前向传播函数
+        :param x_matrix: 输入数据块 (B, N, F_in, T)
+        :return: 输出为空间注意力矩阵 (B, N, N)
+        """
+        # 消除特征维度 F
+        mat_n_l = torch.matmul(torch.matmul(x_matrix, self.W1), self.W2)  # (B, N, T)
+        # 另外一半消除特征维度 F
+        mat_n_r = torch.matmul(self.W3, x_matrix).transpose(-1, -2)  # (B, T, N)
+        dot_product = torch.matmul(mat_n_l, mat_n_r)  # (B, N, N)
+        # 对 dot_product Attention 做线性重组
+
+        S_att = torch.matmul(self.Vs, torch.sigmoid(dot_product + self.bs))
+        # 做 Softmax 归一化，使得注意力输出每行和为 1
+        S_norm = F.softmax(S_att, dim=1)
+        return S_norm
+
+
+class TemporalAttentionLayer(nn.Module):
+    """
+    时间注意力机层，计算所有时间步的注意力矩阵
+    """
+
+    def __init__(self, in_channels: int, vertices_num: int, time_steps_num: int):
+        """
+        构造函数
+        :param in_channels: 输入通道数，特征数， Integer 类型
+        :param vertices_num: 图节点数量， Integer 类型
+        :param time_steps_num: 时间步数量，指的是输入的时间段的个数， Integer 类型
+        """
+        super(TemporalAttentionLayer, self).__init__()
+        self.U1 = nn.Parameter(torch.FloatTensor(vertices_num))
+        self.U2 = nn.Parameter(torch.FloatTensor(in_channels, vertices_num))
+        self.U3 = nn.Parameter(torch.FloatTensor(in_channels))
+        self.be = nn.Parameter(torch.FloatTensor(1, time_steps_num, time_steps_num))
+        self.Ve = nn.Parameter(torch.FloatTensor(time_steps_num, time_steps_num))
+
+    def forward(self, x_matrix, mask=None):
+        """
+        前向传播函数
+        :param x_matrix: 输入数据块 (B, N, C, T)
+        :param mask: 掩码矩阵 (B, T, T)
+        :return: 输出为时间注意力矩阵 (B, T, T)
+        """
+        # 消除特征维度 F (B, T, N)
+        mat_t_l = torch.matmul(torch.matmul(x_matrix.permute(0, 3, 2, 1), self.U1), self.U2)
+        # 右侧消除特征维度 F (B, N, T)
+        mat_t_r = torch.matmul(self.U3, x_matrix)
+        dot_product = torch.matmul(mat_t_l, mat_t_r)  # (B, T, T)
+        # 线性重分布
+        E_att = torch.matmul(self.Ve, torch.sigmoid(dot_product + self.be))  # (B, T, T)
+        if mask is not None:
+            E_att = E_att.masked_fill(mask, -1e6)
+        E_norm = F.softmax(E_att, dim=1)
+        return E_norm
 
 
 class SpatialMultiHeadAttentionLayer(nn.Module):
