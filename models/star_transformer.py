@@ -3,7 +3,6 @@ from torch import nn
 
 from models.star_decoder import StarDecoder
 from models.star_encoder import StarEncoder
-from utils.adj import get_edge_index
 
 
 class StarTransformer(nn.Module):
