@@ -272,7 +272,8 @@ def predict_main(global_step: int, data_loader: DataLoader,
         params_path=params_path,
         run_type=run_type,
         sw=sw,
-        plot_sensor_count=10
+        plot_sensor_count=10,
+        forward=False
     )
 
 

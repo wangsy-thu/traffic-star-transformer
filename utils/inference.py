@@ -13,7 +13,7 @@ from utils.metrics import masked_mae_test, masked_rmse_test, masked_mape_np
 from models.star_transformer import StarTransformer
 
 
-def predict_and_save_results(net: StarTransformer, data_loader: DataLoader,
+def predict_and_save_results(net: StarTransformer, data_loader: DataLoader, forward: bool,
                              data_target_tensor: torch.Tensor, global_step: int,
                              metric_method: str, _mean, _std, params_path: str,
                              run_type: str, sw: SummaryWriter, plot_sensor_count: int):
@@ -29,6 +29,7 @@ def predict_and_save_results(net: StarTransformer, data_loader: DataLoader,
     :param _mean: (1, 1, 3, 1)
     :param _std: (1, 1, 3, 1)
     :param params_path: the path for saving the results
+    :param forward: 预测方法
     :return:
     """
     net.train(False)  # ensure dropout layers are in test mode
@@ -40,8 +41,16 @@ def predict_and_save_results(net: StarTransformer, data_loader: DataLoader,
         for batch_data in tqdm(data_loader, desc='Inference'):
             encoder_inputs, labels = batch_data
             input_mat.append(encoder_inputs[:, :, 0:1].cpu().numpy())  # (batch, T', 1)
-            outputs = net.inference(encoder_inputs)
-            outputs = outputs.squeeze()
+            if forward:
+                current_batch_size, num_of_vertices, in_features, _ = encoder_inputs.size()
+                labels = labels.unsqueeze(2)
+                start_engine = -torch.ones((current_batch_size, num_of_vertices, 1, 1)).to(encoder_inputs.device)
+                labels_input = torch.cat([start_engine, labels], dim=-1)
+                outputs = net(encoder_inputs, labels_input)
+                outputs = outputs[:, :, :, :-1].squeeze()
+            else:
+                outputs = net.inference(encoder_inputs)
+                outputs = outputs.squeeze()
             prediction.append(outputs.detach().cpu().numpy())
 
         input_mat = np.concatenate(input_mat, 0)
